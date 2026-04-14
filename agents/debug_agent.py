@@ -75,8 +75,8 @@ def run(agent, parent_node: SearchNode) -> SearchNode:
         "   • All data loading and preprocessing\n"
         "   • Complete model definition and training\n"
         "   • Complete validation metric calculation\n"
-        "   • Complete test inference and submission.csv generation\n"
-        "   • Every line of code needed to run from beginning to end\n\n"
+        + ("" if getattr(agent.cfg, "no_submission_mode", False) else "   • Complete test inference and submission.csv generation\n")
+        + "   • Every line of code needed to run from beginning to end\n\n"
         "Your response format:\n"
         "1. A brief implementation outline (2-3 sentences) explaining the bugfix\n"
         "2. A single markdown code block containing the COMPLETE executable solution with the bugfix applied\n\n"

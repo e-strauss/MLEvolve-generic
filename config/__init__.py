@@ -146,6 +146,7 @@ class Config(Hashable):
     coldstart: ColdstartConfig
 
     use_grading_server: bool = True
+    no_submission_mode: bool = False
     init_solution: InitSolutionConfig = field(default_factory=InitSolutionConfig)
 
 
@@ -162,9 +163,24 @@ def _get_next_logindex(dir: Path) -> int:
     return max_index + 1
 
 
+def _load_dotenv():
+    """Load .env file from project root into os.environ (simple key=value parsing)."""
+    import os
+    env_path = Path(__file__).parent.parent / ".env"
+    if env_path.exists():
+        for line in env_path.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                key, _, value = line.partition("=")
+                os.environ.setdefault(key.strip(), value.strip())
+
+
 def _load_cfg(
     path: Path = Path(__file__).parent / "config.yaml", use_cli_args=True
 ) -> Config:
+    _load_dotenv()
     cfg = OmegaConf.load(path)
     if use_cli_args:
         cfg = OmegaConf.merge(cfg, OmegaConf.from_cli())

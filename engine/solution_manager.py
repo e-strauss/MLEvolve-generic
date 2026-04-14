@@ -64,12 +64,13 @@ def save_best_solution(agent, result_node, submission_file_path) -> None:
 
     with agent.save_node_lock:
         best_solution_dir.mkdir(exist_ok=True, parents=True)
-        best_submission_dir.mkdir(exist_ok=True, parents=True)
 
-        shutil.copy(
-            submission_file_path,
-            best_submission_dir / "submission.csv",
-        )
+        if not getattr(agent.cfg, "no_submission_mode", False):
+            best_submission_dir.mkdir(exist_ok=True, parents=True)
+            shutil.copy(
+                submission_file_path,
+                best_submission_dir / "submission.csv",
+            )
 
         with open(best_solution_dir / "solution.py", "w") as f:
             f.write(result_node.code)
@@ -165,28 +166,29 @@ def save_top_candidates(agent) -> None:
                 logger.error(f"Failed to save top{rank} solution files for node {node.id}: {e}")
 
             # Copy submission to the same directory
-            submission_file_path = agent.cfg.workspace_dir / "submission" / f"submission_{node.id}.csv"
-            target_submission_path = rank_dir / "submission.csv"
+            if not getattr(agent.cfg, "no_submission_mode", False):
+                submission_file_path = agent.cfg.workspace_dir / "submission" / f"submission_{node.id}.csv"
+                target_submission_path = rank_dir / "submission.csv"
 
-            if submission_file_path.exists():
-                try:
-                    shutil.copy(submission_file_path, target_submission_path)
-                    logger.info(f"Saved top{rank} submission for node {node.id}")
-                except Exception as e:
-                    logger.error(f"Failed to copy top{rank} submission for node {node.id}: {e}")
-            else:
-                # Best-effort search for alternative matching file
-                submission_dir = agent.cfg.workspace_dir / "submission"
-                if submission_dir.exists():
-                    for file in submission_dir.iterdir():
-                        if node.id in file.name and file.name.endswith('.csv'):
-                            try:
-                                shutil.copy(file, target_submission_path)
-                                logger.info(
-                                    f"Found alternative submission for top{rank} node {node.id}: {file.name}")
-                            except Exception as e:
-                                logger.error(f"Failed to copy alternative submission for node {node.id}: {e}")
-                            break
+                if submission_file_path.exists():
+                    try:
+                        shutil.copy(submission_file_path, target_submission_path)
+                        logger.info(f"Saved top{rank} submission for node {node.id}")
+                    except Exception as e:
+                        logger.error(f"Failed to copy top{rank} submission for node {node.id}: {e}")
+                else:
+                    # Best-effort search for alternative matching file
+                    submission_dir = agent.cfg.workspace_dir / "submission"
+                    if submission_dir.exists():
+                        for file in submission_dir.iterdir():
+                            if node.id in file.name and file.name.endswith('.csv'):
+                                try:
+                                    shutil.copy(file, target_submission_path)
+                                    logger.info(
+                                        f"Found alternative submission for top{rank} node {node.id}: {file.name}")
+                                except Exception as e:
+                                    logger.error(f"Failed to copy alternative submission for node {node.id}: {e}")
+                                break
 
 
 def get_branch_top_nodes(agent, branch_id: int, top_k: int = 3) -> List[SearchNode]:

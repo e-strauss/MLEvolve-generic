@@ -15,9 +15,11 @@ from utils.visualization import journal_to_string_tree
 from utils.seed import set_global_seed
 from engine.coldstart import build_guidance_description
 from utils.logging_config import setup_logging
-import torch
 
-
+try:
+    import torch
+except ImportError:
+    pass
 
 def run():
     cfg = load_cfg()

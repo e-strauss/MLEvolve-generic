@@ -16,6 +16,7 @@ def get_impl_guideline_from_agent(agent):
         expose_prediction=getattr(agent.acfg, "expose_prediction", False),
         k_fold_validation=getattr(agent.acfg, "k_fold_validation", 0),
         pretrain_model_dir=getattr(agent.cfg, "pretrain_model_dir", ""),
+        no_submission_mode=getattr(agent.cfg, "no_submission_mode", False),
     )
 
 
@@ -31,6 +32,7 @@ def get_impl_guideline(
     expose_prediction: bool = False,
     k_fold_validation: int = 0,
     pretrain_model_dir: str = "",
+    no_submission_mode: bool = False,
 ) -> dict:
     """Build implementation guideline from time and config."""
     impl_guideline = [
@@ -46,17 +48,37 @@ def get_impl_guideline(
         "• ❌ FORBIDDEN: Fake/mock metric functions (must use real sklearn.metrics or correct manual implementation)",
         "• Why: Shortcuts create fake high validation scores but fail on test (CRITICAL SYSTEM FAILURE)",
         "",
-        "**2. Generate submission.csv**",
-        "• Path: `./submission/submission.csv` (NOT ./working/submission.csv)",
-        "• Content: Model predictions on ALL test samples",
-        "• Format: Follow task description exactly",
-        "",
-        "**3. Print Validation Metric**",
-        "• MUST print: `print(f'Final Validation Score: {score}')`",
-        "• Score MUST be computed on hold-out validation set using proper metric formula",
-        "• CRITICAL CONSISTENCY REQUIREMENT: Ensure that validation and test inference use IDENTICAL processing logic. Any differences in how validation and test data are handled (such as post-processing, reconstruction, or formatting) can cause large performance gaps between validation and test sets. Maintain consistency across all data processing steps for both validation and test phases.",
-        "",
-        "📁 **Directories**: Input data in `./input/`, submission in `./submission/`, temp files in `./working/`",
+    ]
+
+    if no_submission_mode:
+        impl_guideline += [
+            "**2. Focus on Validation Only**",
+            "• Split the input data into train and validation sets (e.g. 80/20 or use cross-validation)",
+            "• Train on the training split, evaluate on the validation split",
+            "• There is NO separate test set and NO submission file — optimize the validation metric only",
+            "",
+            "**3. Print Validation Metric**",
+            "• MUST print: `print(f'Final Validation Score: {score}')`",
+            "• Score MUST be computed on hold-out validation set using proper metric formula",
+            "",
+            f"📁 **Directories**: Input data in `./input/`, temp files in `./working/`",
+        ]
+    else:
+        impl_guideline += [
+            "**2. Generate submission.csv**",
+            "• Path: `./submission/submission.csv` (NOT ./working/submission.csv)",
+            "• Content: Model predictions on ALL test samples",
+            "• Format: Follow task description exactly",
+            "",
+            "**3. Print Validation Metric**",
+            "• MUST print: `print(f'Final Validation Score: {score}')`",
+            "• Score MUST be computed on hold-out validation set using proper metric formula",
+            "• CRITICAL CONSISTENCY REQUIREMENT: Ensure that validation and test inference use IDENTICAL processing logic. Any differences in how validation and test data are handled (such as post-processing, reconstruction, or formatting) can cause large performance gaps between validation and test sets. Maintain consistency across all data processing steps for both validation and test phases.",
+            "",
+            "📁 **Directories**: Input data in `./input/`, submission in `./submission/`, temp files in `./working/`",
+        ]
+
+    impl_guideline += [
         "",
         f"📦 **Packages & Internet**: numpy, pandas, sklearn, torch, transformers, timm, xgboost, lightgbm (all pre-installed). torch.hub.load(), HuggingFace, etc. available during development."
         + (f" Offline models at `{pretrain_model_dir}`" if pretrain_model_dir else ""),
@@ -69,12 +91,23 @@ def get_impl_guideline(
         "• Print only 1 line per epoch (minimize logging)",
         "• Use DataLoader with num_workers>=2 for speed",
         "",
-        "⚠️  **Self-Check Before Finalizing**:",
-        "□ Did predictions pass through model's learned weights during inference? (If NO → INVALID)",
-        "□ Did I generate submission.csv in correct path with ALL test predictions?",
-        "□ Did I print validation metric as the last line?",
-        "□ Did I use the COMPLETE training dataset (not a tiny subset)?",
     ]
+
+    if no_submission_mode:
+        impl_guideline += [
+            "⚠️  **Self-Check Before Finalizing**:",
+            "□ Did predictions pass through model's learned weights during inference? (If NO → INVALID)",
+            "□ Did I print validation metric as the last line?",
+            "□ Did I use the COMPLETE training dataset (not a tiny subset)?",
+        ]
+    else:
+        impl_guideline += [
+            "⚠️  **Self-Check Before Finalizing**:",
+            "□ Did predictions pass through model's learned weights during inference? (If NO → INVALID)",
+            "□ Did I generate submission.csv in correct path with ALL test predictions?",
+            "□ Did I print validation metric as the last line?",
+            "□ Did I use the COMPLETE training dataset (not a tiny subset)?",
+        ]
     if expose_prediction:
         impl_guideline.append(
             "The implementation should include a predict() function, "

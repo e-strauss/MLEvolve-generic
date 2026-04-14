@@ -33,6 +33,7 @@ class StepwiseContext:
     memory: str = ""
     previous_code: str = ""
     execution_output: str = ""
+    no_submission_mode: bool = False
 
 
 @dataclass
@@ -337,7 +338,7 @@ class MetaAgent:
             "- Remove duplicate imports and definitions",
             "- Resolve conflicts between steps by following the earlier step's design (e.g., model_design defines the model, training_evaluation trains it)",
             "- Ensure the execution flow is logical: data processing & feature engineering -> model design -> training & evaluation",
-            "- Make sure the final code prints validation metric (must match task's Evaluation section) and saves submission.csv",
+            "- Make sure the final code prints validation metric (must match task's Evaluation section)" + ("" if context.no_submission_mode else " and saves submission.csv"),
             "- The code should be a single-file Python program that can be executed as-is",
             "- Assume previous steps have NOT been executed; do not skip execution steps and only read files or outputs.",
             "- All parts must work together seamlessly",
@@ -404,14 +405,27 @@ class MetaAgent:
         return "\n".join(code_parts)
 
 
-def create_default_step_agents() -> List[StepAgent]:
+def create_default_step_agents(no_submission_mode: bool = False) -> List[StepAgent]:
+    if no_submission_mode:
+        data_split_desc = "Load data from `./input` directory, perform cleaning, feature engineering, and create train/validation splits."
+        data_split_guideline = "Your responsibility: Load data from `./input`, clean, create features (preprocessing, encoding, augmentation), and split dataset into train/validation."
+        train_eval_intro = "You are a Training and Evaluation Expert responsible for implementing training and validation."
+        train_eval_desc = "Implement the training loop, validation, and metric tracking."
+        train_eval_primary = "Your responsibility: Write the training loop that uses the data, features, model, loss function, and optimizer from previous steps. Include validation, metric tracking, save the best model. Then load the best model and calculate validation metric (must match task's Evaluation section)."
+    else:
+        data_split_desc = "Load data from `./input` directory, perform cleaning, feature engineering, and create train/validation/test splits."
+        data_split_guideline = "Your responsibility: Load data from `./input`, clean, create features (preprocessing, encoding, augmentation), and split dataset into train/validation/test."
+        train_eval_intro = "You are a Training and Evaluation Expert responsible for implementing training, validation, and submission generation."
+        train_eval_desc = "Implement the training loop, validation, metric tracking, model saving, and generate submission file."
+        train_eval_primary = "Your responsibility: Write the training loop that uses the data, features, model, loss function, and optimizer from previous steps. Include validation, metric tracking, save the best model. Then load the best model, calculate validation metric (must match task's Evaluation section), perform test inference, and save `submission.csv` to `./submission/` directory."
+
     return [
         StepAgent(
             name="data_processing_and_feature_engineering",
             introduction="You are a Data Preparation Specialist responsible for data loading, cleaning, and feature engineering.",
-            description="Load data from `./input` directory, perform cleaning, feature engineering, and create train/validation/test splits.",
+            description=data_split_desc,
             guidelines=[
-                "Your responsibility: Load data from `./input`, clean, create features (preprocessing, encoding, augmentation), and split dataset into train/validation/test.",
+                data_split_guideline,
                 "CRITICAL: This step MUST include BOTH data loading AND feature engineering. Do NOT only load the raw data. You must actively create, transform, and enhance features to improve model performance.",
                 "IMPORTANT: Apply feature engineering techniques such as feature scaling, encoding, transformation, and data augmentation methods appropriate for the task. Explore and implement feature engineering strategies that can enhance the model's ability to learn from the data.",
                 "CRITICAL: Do NOT build models, write training code, or perform evaluation. Focus ONLY on data preparation and feature engineering.",
@@ -430,10 +444,10 @@ def create_default_step_agents() -> List[StepAgent]:
         ),
         StepAgent(
             name="training_evaluation",
-            introduction="You are a Training and Evaluation Expert responsible for implementing training, validation, and submission generation.",
-            description="Implement the training loop, validation, metric tracking, model saving, and generate submission file.",
+            introduction=train_eval_intro,
+            description=train_eval_desc,
             guidelines=[
-                "Your responsibility: Write the training loop that uses the data, features, model, loss function, and optimizer from previous steps. Include validation, metric tracking, save the best model. Then load the best model, calculate validation metric (must match task's Evaluation section), perform test inference, and save `submission.csv` to `./submission/` directory.",
+                train_eval_primary,
                 "CRITICAL: Assume that all previous code steps have already been executed. You should start directly from the training step. Do NOT redefine or reload the data, features, model, loss function, or optimizer. These components are already defined and available from the previous steps.",
                 "CRITICAL: You MUST use the variables and objects defined in previous steps AS-IS. Do NOT replace, redesign, or substitute them with different approaches. Your ONLY job is to write the training/evaluation code for what was already defined — not to introduce new models or pipelines.",
                 "IMPORTANT: Your code should assume the data preprocessing, feature engineering, and model design steps have been completed. Simply use the existing variables without copying them.",
@@ -463,14 +477,16 @@ def stepwise_plan_and_code_query(
     ) -> Tuple[str, str]:
     logger.info("Using stepwise generation route.")
 
+    no_submission_mode = getattr(agent_instance.cfg, "no_submission_mode", False) if agent_instance else False
     stepwise_context = StepwiseContext(
         stage=context.get("stage", "draft"),
         memory=context.get("memory", ""),
         previous_code=context.get("previous_code", ""),
         execution_output=context.get("execution_output", ""),
+        no_submission_mode=no_submission_mode,
     )
 
-    step_agents = create_default_step_agents()
+    step_agents = create_default_step_agents(no_submission_mode=no_submission_mode)
     meta_agent = MetaAgent()
 
     step_results: List[Dict[str, str]] = []

@@ -170,6 +170,9 @@ def _build_introduction(agent) -> str:
 
 
 def _check_submission_file(agent, node: SearchNode) -> bool:
+    if getattr(agent.cfg, "no_submission_mode", False):
+        return True
+
     correct_path = agent.cfg.workspace_dir / "submission" / f"submission_{node.id}.csv"
 
     if not correct_path.exists():
@@ -195,7 +198,7 @@ def _save_code_summary(agent, node: SearchNode, response: dict):
         node.code_summary = None
 
 
-def _determine_buggy(node: SearchNode, response: dict, has_csv_submission: bool):
+def _determine_buggy(node: SearchNode, response: dict, has_csv_submission: bool, no_submission_mode: bool = False):
     failure_reasons = []
     if response["is_bug"]:
         failure_reasons.append("execution error detected")
@@ -203,7 +206,7 @@ def _determine_buggy(node: SearchNode, response: dict, has_csv_submission: bool)
         failure_reasons.append(f"exception raised: {node.exc_type}")
     if response["metric"] is None:
         failure_reasons.append("no metric value reported")
-    if not has_csv_submission:
+    if not no_submission_mode and not has_csv_submission:
         failure_reasons.append("submission file not found")
 
     node.is_buggy = len(failure_reasons) > 0
@@ -212,6 +215,11 @@ def _determine_buggy(node: SearchNode, response: dict, has_csv_submission: bool)
 
 
 def _validate_format_with_retry(agent, node: SearchNode):
+    if getattr(agent.cfg, "no_submission_mode", False):
+        logger.info(f"[validate] node {node.id}: skipping format validation (no_submission_mode)")
+        node.is_valid = True
+        return
+
     exp_id = agent.cfg.exp_name.split("_")[2]
     submission_path = agent.cfg.workspace_dir / "submission" / f"submission_{node.id}.csv"
 
@@ -421,10 +429,11 @@ def run(agent, node: SearchNode, exec_result: ExecutionResult) -> SearchNode:
                     response[bool_field] = v.strip().lower() not in ("false", "0", "no", "")
 
             has_csv_submission = _check_submission_file(agent, node)
+            no_submission_mode = getattr(agent.cfg, "no_submission_mode", False)
 
             node.analysis = response["summary"]
             _save_code_summary(agent, node, response)
-            _determine_buggy(node, response, has_csv_submission)
+            _determine_buggy(node, response, has_csv_submission, no_submission_mode=no_submission_mode)
 
             if not node.is_buggy:
                 _validate_format_with_retry(agent, node)

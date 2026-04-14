@@ -73,6 +73,7 @@ class Interpreter:
                 "The maximum level of parallelism exceeds the number of allocated CPU cores; "
                 "ensure that each process has at least one CPU core."
             )
+        self.no_submission_mode = getattr(cfg, "no_submission_mode", False) if cfg else False
         self.lock = Lock()
         self._procs_lock = threading.Lock()
         self._active_procs: dict[int, subprocess.Popen] = {}
@@ -100,6 +101,8 @@ class Interpreter:
 
     def isolate_submission_path(self, code: str, _id) -> str:
         """Per-process submission filename to avoid write conflicts."""
+        if self.no_submission_mode:
+            return code
         target = f"submission_{_id}.csv"
 
         code = code.replace("submission/submission.csv", f"submission/{target}")
@@ -198,13 +201,17 @@ class Interpreter:
         
         try:
             cpu_number_per_session = max(1, int(self.cpu_number / self.max_parallel_run))
-            avail_cpus = sorted(os.sched_getaffinity(0))
-            start = process_id * cpu_number_per_session
-            cpu_set = set(avail_cpus[start:start + cpu_number_per_session])
-            if not cpu_set:
-                cpu_set = set(avail_cpus)
-            logger.info(f"has set process_id:{process_id} to use cpu: {cpu_set}")
-            pre_code = "import os\nos.sched_setaffinity(0, {cpu_set})\n".format(cpu_set=cpu_set)
+            if hasattr(os, "sched_getaffinity"):
+                avail_cpus = sorted(os.sched_getaffinity(0))
+                start = process_id * cpu_number_per_session
+                cpu_set = set(avail_cpus[start:start + cpu_number_per_session])
+                if not cpu_set:
+                    cpu_set = set(avail_cpus)
+                logger.info(f"has set process_id:{process_id} to use cpu: {cpu_set}")
+                pre_code = "import os\nos.sched_setaffinity(0, {cpu_set})\n".format(cpu_set=cpu_set)
+            else:
+                logger.info(f"CPU affinity not supported on this platform, skipping for process_id:{process_id}")
+                pre_code = ""
 
             code = self.isolate_submission_path(code=code, _id=id)
             code = self.isolate_model_path(code=code, _id=id)

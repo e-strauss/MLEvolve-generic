@@ -23,12 +23,13 @@ def validate_executed_node(agent, node: SearchNode):
     if node.is_buggy:
         return
 
-    submission_path = agent.cfg.workspace_dir / "submission" / f"submission_{node.id}.csv"
-    if not submission_path.exists():
-        node.is_buggy = True
-        node.metric = WorstMetricValue()
-        logger.info(f"Node {node.id} did not produce a submission.csv")
-        return
+    if not getattr(agent.cfg, "no_submission_mode", False):
+        submission_path = agent.cfg.workspace_dir / "submission" / f"submission_{node.id}.csv"
+        if not submission_path.exists():
+            node.is_buggy = True
+            node.metric = WorstMetricValue()
+            logger.info(f"Node {node.id} did not produce a submission.csv")
+            return
 
     if node.metric.maximize and node.metric.value == 0.0:
         node.is_buggy = True

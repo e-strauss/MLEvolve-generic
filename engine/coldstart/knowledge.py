@@ -59,9 +59,14 @@ def get_init_solution_paths(exp_id: str) -> List[str]:
 
 def build_guidance_description(cfg: Any) -> str:
 
-    tasks = _load_json(cfg.coldstart.task_json_path)
-    models = _load_json(cfg.coldstart.model_json_path)
+    try:
+        tasks = _load_json(cfg.coldstart.task_json_path)
+        models = _load_json(cfg.coldstart.model_json_path)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return ""
     text = _build_guidance_text(cfg.exp_id, tasks, models)
+    if text == "None model":
+        return ""
     torch_hub_dir = getattr(cfg, "torch_hub_dir", "") or ""
     if torch_hub_dir:
         text = text.replace("{TORCH_HUB_DIR}", torch_hub_dir.rstrip("/"))
